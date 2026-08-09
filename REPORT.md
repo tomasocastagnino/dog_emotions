@@ -211,14 +211,45 @@ iterando sobre pesos/combinaciones para no extender la búsqueda
 indefinidamente sin una señal de que vaya a funcionar; el modelo en producción
 sigue siendo `mobilenetv3_n30_do20_aug` (80,75%, sin datos extra).
 
+## Revisión manual: qué hay realmente detrás de la confusión relaxed/sad
+
+Se revisaron a mano 18 imágenes del test set: las 6 confusiones más confiadas
+en cada dirección (`relaxed` real clasificada como `sad`, y viceversa) más 6
+ejemplos de cada clase clasificados bien con alta confianza, de control.
+
+Los ejemplos de **`relaxed` bien clasificados** (alta confianza) muestran
+sobre todo *postura*: panza arriba desparramado en un sillón, ovillado
+durmiendo. Los de **`sad` bien clasificados**, en cambio, en su mayoría (2 de
+3 en la muestra) tienen al perro **detrás de una reja o jaula tipo refugio**
+— la señal de "tristeza" ahí no viene tanto de la cara o postura del perro
+como del contexto de la foto (jaula, ambiente institucional), algo que un
+modelo de imagen puede aprender a reconocer igual que reconoce razas.
+
+Esto explica las confusiones: varias fotos etiquetadas `sad` que **no** tienen
+ese contexto de refugio (un perro tirado en un sillón de casa, en la cama,
+siendo acariciado) son visualmente casi indistinguibles de `relaxed` —misma
+postura de descanso, sin más pistas— y a criterio propio, mirándolas sueltas,
+varias podrían pasar perfectamente por `relaxed`. Del otro lado, fotos de
+`relaxed` con los ojos cerrados o entrecerrados y poca energía visible se
+parecen a las de `sad` sin contexto de refugio.
+
+En criollo: `sad` en este dataset mezcla dos señales distintas — perros con
+cara/postura genuinamente triste, y perros fotografiados en un contexto
+institucional que puede o no reflejarse en su lenguaje corporal. Cuando falta
+ese contexto, la etiqueta se vuelve poco consistente con lo que muestra la
+imagen. Esto confirma la sospecha de los tres experimentos anteriores, pero
+con una causa más concreta que "ambigüedad": no es (solo) que el modelo no
+distinga bien, es que **la etiqueta `sad` no es consistente en sí misma**
+dentro del dataset original — un problema que ningún volumen de datos extra
+ni ajuste de hiperparámetros puede resolver.
+
 ## Limitaciones y próximos pasos
 
-- Con tres intentos de sumar datos chocando contra el mismo límite
-  (`relaxed` vs `sad`), revisar a mano una muestra de ambas clases (las de
-  Kaggle y las que pasaron los filtros de Flickr) pesa más que seguir
-  probando combinaciones de pesos — si el problema es de etiquetas dudosas o
-  ambigüedad visual real, ningún ajuste de datos ni de hiperparámetros lo va
-  a resolver solo.
+- Si se quisiera seguir en esta línea, el paso concreto sería filtrar/separar
+  las imágenes de `sad` que dependen del contexto (jaula, refugio) de las que
+  muestran tristeza en la cara o postura del perro sin ese contexto, y
+  reetiquetar o descartar las segundas si no son consistentes — en vez de
+  seguir sumando más datos con la misma etiqueta ambigua.
 - No se hizo un barrido más fino alrededor de `n_capas=30` (por ejemplo 25 o 35)
   para confirmar si ese es realmente el óptimo o si se puede exprimir un poco más.
 
