@@ -4,9 +4,10 @@ para clasificar emociones caninas (angry / happy / relaxed / sad), pensado para
 terminar corriendo en el navegador via TensorFlow.js.
 
 Es la continuacion de un trabajo practico universitario que entrenaba InceptionV3
-para el mismo problema (76% accuracy, 124 MB, ver ../original-tp/). Este script es
-independiente de ese notebook: descarga el dataset, arma los splits y entrena solo,
-sin depender de ninguna celda previa.
+para el mismo problema (76% accuracy, 124 MB -- repo original:
+https://github.com/gaspigz/TP-FINAL-IIA). Este script es independiente de ese
+notebook: descarga el dataset, arma los splits y entrena solo, sin depender de
+ninguna celda previa.
 
 Uso (correr siempre desde la raiz del repo):
     python training/train_lightweight.py --backbone mobilenetv3

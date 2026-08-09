@@ -9,15 +9,16 @@ ningún servidor.
 
 La idea nace de un trabajo práctico de la materia *Introducción a la Inteligencia
 Artificial* (UNR), donde entrenamos un clasificador con InceptionV3 (76% accuracy,
-124 MB, corriendo en una app de escritorio con la cámara). Ese trabajo queda
-documentado en [`original-tp/`](original-tp/) como crédito de origen, pero este repo
-**no es ese trabajo**: es una evolución independiente, con objetivos propios —
-mejor accuracy, un modelo mucho más liviano, y despliegue real como sitio web
-(GitHub Pages + TensorFlow.js) en vez de una app de escritorio local.
+124 MB, corriendo en una app de escritorio con la cámara). El repositorio real de
+ese trabajo es [gaspigz/TP-FINAL-IIA](https://github.com/gaspigz/TP-FINAL-IIA) —
+crédito de origen ahí. Este repo **no es ese trabajo**: es una evolución
+independiente, con objetivos propios — mejor accuracy, un modelo mucho más
+liviano, y despliegue real como sitio web (GitHub Pages + TensorFlow.js) en vez
+de una app de escritorio local.
 
 ## Estado actual
 
-- [x] Modelo original de referencia (InceptionV3, 76% acc, 124 MB) — ver `original-tp/`.
+- [x] Modelo original de referencia (InceptionV3, 76% acc, 124 MB) — ver [gaspigz/TP-FINAL-IIA](https://github.com/gaspigz/TP-FINAL-IIA).
 - [x] Reentrenar con una arquitectura liviana — MobileNetV3Large ganó, 80.75% acc / 24.3 MB (tabla completa abajo).
 - [x] Convertir el modelo final a TensorFlow.js (`docs/model/`, 3.1 MB).
 - [x] Armar la página (cámara + inferencia en el navegador) — `docs/index.html` + `docs/app.js`.
@@ -47,8 +48,6 @@ descongeladas, dropout 0.2, augmentation): mejor accuracy de las 4, y sigue sien
 ├── training/
 │   ├── train_lightweight.py     # entrena MobileNetV3Large / EfficientNetV2B0
 │   └── convert_to_tfjs.py       # convierte el .keras ganador a docs/model/
-├── original-tp/
-│   └── TP_Final_IIA_....ipynb   # notebook del trabajo práctico original (InceptionV3)
 ├── app.py                       # app de escritorio (prototipo original, cámara local)
 ├── convert_to_tflite.py         # conversión .keras -> .tflite para la app de escritorio
 ├── docs/                        # la página web -> GitHub Pages (Settings > Pages > /docs)
