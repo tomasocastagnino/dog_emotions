@@ -1,0 +1,29 @@
+# Credenciales -- nunca se suben
+kaggle.json
+
+# Datasets locales (grandes; se regeneran con kagglehub o son solo para explorar
+# a mano -- las de data/images/ ademas tienen proveniencia de Flickr sin licencia
+# confirmada, no deberian terminar en un repo publico de todas formas)
+data/
+
+# Modelos y resultados de entrenamiento (grandes / se regeneran corriendo el
+# training script o el notebook). Si en algun momento quieren versionar a
+# proposito el modelo final ya comprimido para la web, usen `git add -f`.
+models/
+histories/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

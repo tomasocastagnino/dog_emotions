@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dog Emotion Web</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>🐶 Dog Emotion Web</h1>
+    <p class="subtitle">
+      Apuntá la cámara a un perro y el modelo predice su emoción
+      (<code>angry</code>, <code>happy</code>, <code>relaxed</code>, <code>sad</code>)
+      corriendo 100% en tu navegador. El video nunca sale de tu dispositivo.
+    </p>
+
+    <div class="video-wrap">
+      <video id="video" playsinline muted autoplay></video>
+      <div id="result" class="overlay" hidden>
+        <div class="label" id="label">--</div>
+        <div class="conf-bar-bg"><div class="conf-bar" id="confBar"></div></div>
+        <div class="conf-text" id="confText"></div>
+      </div>
+    </div>
+
+    <button id="startBtn">Activar cámara</button>
+    <p id="status" class="status"></p>
+
+    <footer>
+      Modelo: MobileNetV3Large (fine-tuned) · 3 MB · corre con
+      <a href="https://www.tensorflow.org/js" target="_blank" rel="noopener">TensorFlow.js</a>.
+      Basado en un trabajo práctico de Introducción a la IA (UNR) —
+      <a href="https://github.com/tomasocastagnino/dog_emotions" target="_blank" rel="noopener">código en GitHub</a>.
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

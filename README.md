@@ -18,22 +18,42 @@ mejor accuracy, un modelo mucho más liviano, y despliegue real como sitio web
 ## Estado actual
 
 - [x] Modelo original de referencia (InceptionV3, 76% acc, 124 MB) — ver `original-tp/`.
-- [ ] Reentrenar con una arquitectura liviana (MobileNetV3Large / EfficientNetV2B0).
-- [ ] Convertir el modelo final a TensorFlow.js.
-- [ ] Armar la página (cámara + inferencia en el navegador).
-- [ ] Publicar en GitHub Pages (sirviendo desde `docs/`).
+- [x] Reentrenar con una arquitectura liviana — MobileNetV3Large ganó, 80.75% acc / 24.3 MB (tabla completa abajo).
+- [x] Convertir el modelo final a TensorFlow.js (`docs/model/`, 3.1 MB).
+- [x] Armar la página (cámara + inferencia en el navegador) — `docs/index.html` + `docs/app.js`.
+- [ ] Activar GitHub Pages en la configuración del repo (paso manual, ver "Publicar" más abajo — no lo puedo hacer yo, no tengo acceso a Settings del repo).
+
+## Modelo final
+
+Se probaron 4 configuraciones sobre el mismo split que el trabajo original (comparable
+1 a 1 contra el 0.760 de InceptionV3):
+
+| Corrida | test_acc | tamaño | test_loss |
+| --- | --- | --- | --- |
+| **mobilenetv3_n30_do20_aug** (elegido) | **0.8075** | **24.3 MB** | 0.796 |
+| mobilenetv3_n20_do20_aug | 0.7800 | 19.4 MB | 0.748 |
+| efficientnetv2b0_n20_do20_aug | 0.7738 | 29.8 MB | 0.588 |
+| mobilenetv3_n10_do30_aug | 0.7600 | 16.3 MB | 0.631 |
+
+Ganó `mobilenetv3_n30_do20_aug` (MobileNetV3Large, 30 capas del backbone
+descongeladas, dropout 0.2, augmentation): mejor accuracy de las 4, y sigue siendo
+~5x más chico que InceptionV3. Convertido a TensorFlow.js queda en 3.1 MB
+(`docs/model/`) — el mismo modelo que sirve `docs/index.html`.
 
 ## Estructura del repo
 
 ```
 .
 ├── training/
-│   └── train_lightweight.py     # entrena MobileNetV3Large / EfficientNetV2B0
+│   ├── train_lightweight.py     # entrena MobileNetV3Large / EfficientNetV2B0
+│   └── convert_to_tfjs.py       # convierte el .keras ganador a docs/model/
 ├── original-tp/
 │   └── TP_Final_IIA_....ipynb   # notebook del trabajo práctico original (InceptionV3)
 ├── app.py                       # app de escritorio (prototipo original, cámara local)
 ├── convert_to_tflite.py         # conversión .keras -> .tflite para la app de escritorio
-├── docs/                        # sitio estático -> GitHub Pages (Settings > Pages > /docs)
+├── docs/                        # la página web -> GitHub Pages (Settings > Pages > /docs)
+│   ├── index.html, style.css, app.js
+│   └── model/                   # modelo final en formato TensorFlow.js (3.1 MB)
 ├── models/, histories/          # modelos entrenados + su historial (no se versionan)
 ├── data/                        # datasets locales (no se versionan, ver más abajo)
 ├── requirements.txt
@@ -182,6 +202,33 @@ se descarga solo con `kagglehub` — no hace falta tenerlo local.
   revisar una muestra a mano antes de confiar en el set completo, y de todas formas
   no deberían terminar versionadas en un repo público sin confirmar la licencia de
   cada imagen.
+
+## Página web
+
+`docs/` tiene la página lista: `index.html` + `style.css` + `app.js` + `model/`
+(el modelo ya convertido a TensorFlow.js, 3.1 MB). Todo corre en el navegador —
+la cámara nunca manda video a ningún lado.
+
+**Probarla en local** (la cámara necesita HTTPS o `localhost`, por eso no alcanza
+con abrir el archivo directo):
+
+```bash
+python3 -m http.server 8080 --directory docs
+# abrir http://localhost:8080
+```
+
+**Publicarla en GitHub Pages** (paso manual, una sola vez): en GitHub, entrar a
+`Settings → Pages` del repo, y en "Build and deployment" elegir *Deploy from a
+branch*, branch `main`, carpeta `/docs`. Guardar. GitHub tarda un par de minutos
+en publicarla la primera vez, después queda actualizada automáticamente con cada
+push a `main` que toque `docs/`.
+
+**Regenerar `docs/model/`** si reentrenás un modelo nuevo y lo dejás mejor que el
+actual:
+
+```bash
+python training/convert_to_tfjs.py --model models/<tu-modelo-nuevo>.keras
+```
 
 ## App de escritorio (prototipo original)
 
