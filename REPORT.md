@@ -143,36 +143,45 @@ dataset es efectivamente ruidoso, como se sospechaba. Por clase: `angry` fue la
 que menos sobrevivió (23,2%), `relaxed` la que más (46,4%, 2.016 imágenes).
 
 Se sumaron esas 2.016 imágenes de `relaxed` al entrenamiento (solo a train, con
-`sample_weight=0.5` para pesar menos que el dataset curado) sobre la misma
-configuración ganadora (MobileNetV3Large, 30 capas, dropout 0.2). Resultado:
-**test_acc bajó a 77,88%** (contra 80,75% sin los datos extra) — no se adoptó,
+`sample_weight` para pesar menos que el dataset curado) sobre la misma
+configuración ganadora (MobileNetV3Large, 30 capas, dropout 0.2), probando dos
+pesos distintos:
+
+| Peso extra | Épocas | test_acc | Recall relaxed | Recall sad |
+| --- | --- | --- | --- | --- |
+| — (sin extra) | 34 | **80,75%** | 0,785 | 0,845 |
+| 0,5 | 22 | 77,88% | **0,880** | 0,695 |
+| 0,2 | 12 | 77,38% | 0,775 | 0,770 |
+
+Ninguno de los dos pesos superó al modelo sin datos extra — **no se adoptó**,
 el modelo en producción sigue siendo `mobilenetv3_n30_do20_aug`.
 
-Mirando por clase se entiende por qué no fue una mejora simple:
+Con peso 0,5 se ve un patrón claro: el recall de `relaxed` mejoró de verdad
+(reconoce más perros relajados reales), pero a costa de "gatillo fácil" —
+empezó a etiquetar como `relaxed` una porción mucho mayor de fotos de `sad`
+(58 casos contra 28 antes), justo la clase con la que más se confunde. Con
+peso 0,2 se esperaba un punto intermedio entre el baseline y el de peso 0,5,
+pero dio *peor* que ambos y paró mucho antes (época 12 contra 22 y 34) — no
+alcanzó a moverle la aguja a `relaxed` pero sí metió ruido suficiente para
+perjudicar un poco a todas las clases por igual. Esa falta de patrón limpio
+entre 0,2 y 0,5 sugiere que buena parte de la diferencia es simplemente
+varianza entre corridas (con menos épocas, hay menos margen para que el
+entrenamiento se asiente), no solo el peso en sí.
 
-| Clase | Recall sin extra | Recall con extra | Precision sin extra | Precision con extra |
-| --- | --- | --- | --- | --- |
-| relaxed | 0,785 | **0,880** | 0,701 | **0,611** |
-| sad | 0,845 | **0,695** | 0,790 | 0,853 |
-| angry | 0,755 | 0,700 | 0,893 | 0,933 |
-
-El recall de `relaxed` efectivamente mejoró (el modelo reconoce más perros
-relajados de verdad), pero a costa de "gatillo fácil": empezó a etiquetar como
-`relaxed` una porción mucho mayor de fotos de `sad` (58 casos contra 28 antes),
-justo la clase con la que más se confunde. Sumar datos a una sola clase corrió
-el punto de equilibrio del modelo hacia esa clase en vez de mejorar la
-separación en general — no es que los datos extra no sirvan, sino que 2.016
-imágenes con peso 0,5 fue demasiado empuje en una sola dirección.
-
-No se seguió iterando sobre esto (probar `--extra-weight` más bajo, usar menos
-imágenes, o sumar a varias clases a la vez) para no extender indefinidamente la
-búsqueda — queda anotado como próximo paso concreto más abajo.
+No se siguió iterando sobre el peso (probar 0,1, 0,35, más paciencia para darle
+tiempo a converger) porque no había una señal clara de que fuera a mejorar con
+un tercer intento — antes de seguir ajustando este dial, tiene más sentido
+revisar a mano una muestra de `relaxed` (ver "Limitaciones" abajo) para saber
+si el problema es la cantidad de datos o la calidad/ambigüedad de las
+etiquetas, que ningún peso va a arreglar.
 
 ## Limitaciones y próximos pasos
 
-- El experimento de arriba sugiere que vale la pena reintentar con un
-  `--extra-weight` más bajo (0.2–0.3) o un subconjunto más chico de las 2.016
-  imágenes de `relaxed`, en vez de las 2.016 completas a peso 0.5.
+- Antes de seguir ajustando el peso de los datos extra, tiene más sentido
+  revisar a mano una muestra de las imágenes de `relaxed` (las de Kaggle y las
+  de Flickr que sobrevivieron el filtro) para entender si el techo está en la
+  cantidad de datos o en ambigüedad/etiquetas dudosas — esto último no lo
+  arregla ningún ajuste de hiperparámetros.
 - No se hizo un barrido más fino alrededor de `n_capas=30` (por ejemplo 25 o 35)
   para confirmar si ese es realmente el óptimo o si se puede exprimir un poco más.
 

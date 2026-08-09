@@ -276,7 +276,10 @@ def train(args):
 
     extra_suffix = ""
     if extra_info:
-        extra_suffix = "_extra" + "".join(c[:3] for c in extra_info["classes"])
+        # el peso va en el nombre para no pisar corridas con el mismo backbone/clases
+        # pero distinto --extra-weight (paso en el que ya nos pisamos una vez).
+        extra_suffix = ("_extra" + "".join(c[:3] for c in extra_info["classes"]) +
+                        f"_w{int(extra_info['weight'] * 100)}")
     run_name = (f"{args.backbone}_n{args.n_capas}_do{int(args.dropout * 100)}_"
                f"{'aug' if args.augment else 'noaug'}{extra_suffix}")
     os.makedirs("models", exist_ok=True)
