@@ -87,7 +87,7 @@ en la página web y en `app.py`.
 │   └── model_gate/              # filtro "¿hay un perro?" en TensorFlow.js (2.6 MB)
 ├── models/, histories/          # modelos entrenados + su historial (no se versionan)
 ├── data/                        # datasets locales (no se versionan, ver más abajo)
-├── report_assets/                # gráficos de REPORT.md (comparación, curvas, matriz de confusión)
+├── report_assets/               # gráficos de REPORT.md (comparación, curvas, matriz de confusión)
 ├── REPORT.md                    # análisis completo de resultados
 ├── LICENSE                      # MIT
 ├── requirements.txt
@@ -270,13 +270,11 @@ python3 -m http.server 8080 --directory docs
 # abrir http://localhost:8080
 ```
 
-**Publicada en GitHub Pages**: <https://tomasocastagnino.github.io/dog_emotions/>
-(`Settings → Pages` del repo, *Deploy from a branch*, branch `main`, carpeta
-`/docs`). Se actualiza sola con cada push a `main` que toque `docs/` — no hace
-falta ningún paso manual más allá de la configuración inicial (ya hecha).
+Publicada en GitHub Pages, se actualiza sola con cada push a `main` que toque
+`docs/`.
 
-**Regenerar los modelos de `docs/`** si reentrenás algo nuevo y lo dejás mejor
-que el actual:
+**Si reentrenás un modelo nuevo y lo dejás mejor que el actual**, así se
+regeneran los modelos de `docs/`:
 
 ```bash
 python training/convert_to_tfjs.py --model models/<tu-modelo-nuevo>.keras   # docs/model/
