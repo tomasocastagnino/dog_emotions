@@ -5,6 +5,8 @@ correr como página web: activás la cámara del celular o de la compu y el mode
 predice la emoción del perro **corriendo 100% en el navegador**, sin mandar video a
 ningún servidor.
 
+**🔴 Probala en vivo: <https://tomasocastagnino.github.io/dog_emotions/>**
+
 ## Origen del proyecto
 
 La idea nace de un trabajo práctico de la materia *Introducción a la Inteligencia
@@ -23,7 +25,7 @@ de una app de escritorio local.
 - [x] Convertir el modelo final a TensorFlow.js (`docs/model/`, 3.1 MB).
 - [x] Armar la página (cámara + inferencia en el navegador) — `docs/index.html` + `docs/app.js`.
 - [x] Filtro de "¿hay un perro?" antes de mostrar una emoción (`docs/model_gate/`, ver abajo).
-- [ ] Activar GitHub Pages en la configuración del repo (paso manual, ver "Publicar" más abajo).
+- [x] Publicada en GitHub Pages: <https://tomasocastagnino.github.io/dog_emotions/>.
 
 ## Modelo final
 
@@ -45,6 +47,15 @@ descongeladas, dropout 0.2, augmentation): mejor accuracy de las 4, y sigue sien
 Análisis completo (matriz de confusión, curvas de entrenamiento, comparación
 por clase contra el modelo original) en **[REPORT.md](REPORT.md)**.
 
+Después se probó tres veces sumar datos extra (Flickr filtrado por el propio
+modelo, y otro dataset de Kaggle) para intentar superar este resultado —
+**ninguno lo superó**, y una revisión manual de las confusiones más comunes
+encontró la causa: la etiqueta `sad` del dataset original mezcla dos señales
+distintas (cara/postura triste vs. contexto de refugio/jaula), algo que
+ningún volumen de datos extra puede arreglar por sí solo. Los tres intentos,
+los números por clase y las fotos concretas que se revisaron están en
+[REPORT.md](REPORT.md).
+
 ### Filtro de "¿hay un perro?"
 
 El clasificador de emociones siempre devuelve una de las 4 clases, incluso
@@ -62,17 +73,23 @@ en la página web y en `app.py`.
 ```
 .
 ├── training/
-│   ├── train_lightweight.py     # entrena MobileNetV3Large / EfficientNetV2B0
-│   ├── convert_to_tfjs.py       # convierte el .keras ganador a docs/model/
-│   └── convert_dog_gate.py      # genera docs/model_gate/ (filtro "¿hay un perro?")
+│   ├── train_lightweight.py       # entrena MobileNetV3Large / EfficientNetV2B0
+│   ├── convert_to_tfjs.py         # convierte el .keras ganador a docs/model/
+│   ├── convert_dog_gate.py        # genera docs/model_gate/ (filtro "¿hay un perro?")
+│   ├── filter_extra_images.py     # cura data/images/ usando el modelo actual como filtro
+│   ├── build_archive_manifest.py  # arma un manifest desde archive/ (otro dataset de Kaggle)
+│   └── generate_report_assets.py  # genera los gráficos de REPORT.md
 ├── app.py                       # app de escritorio (prototipo original, cámara local)
 ├── convert_to_tflite.py         # conversión .keras -> .tflite para la app de escritorio
-├── docs/                        # la página web -> GitHub Pages (Settings > Pages > /docs)
+├── docs/                        # la página web -> GitHub Pages (ya publicada, ver arriba)
 │   ├── index.html, style.css, app.js
 │   ├── model/                   # modelo de emociones en TensorFlow.js (3.1 MB)
 │   └── model_gate/              # filtro "¿hay un perro?" en TensorFlow.js (2.6 MB)
 ├── models/, histories/          # modelos entrenados + su historial (no se versionan)
 ├── data/                        # datasets locales (no se versionan, ver más abajo)
+├── report_assets/                # gráficos de REPORT.md (comparación, curvas, matriz de confusión)
+├── REPORT.md                    # análisis completo de resultados
+├── LICENSE                      # MIT
 ├── requirements.txt
 └── README.md
 ```
@@ -199,25 +216,45 @@ Correr `python training/train_lightweight.py --help` para el detalle.
 **Dónde correrlo:** para este dataset (3200 imágenes de train+val, arquitecturas
 más chicas que InceptionV3) alcanza con una notebook común — probalo primero en tu
 Mac. Si notás que tarda mucho, pasate a Google Colab (GPU T4 gratis, no necesita
-setup adicional más que subir el script o clonar el repo). Una GPU dedicada (por
-ej. una RTX 3060 Ti) queda en reserva para más adelante, si hace falta un barrido
-más grande de configuraciones o sumar el dataset extra de `data/images/`.
+setup adicional más que subir el script o clonar el repo). Sumar datos extra
+(ver abajo) hace las corridas bastante más lentas — ahí sí una GPU dedicada
+(por ej. una RTX 3060 Ti) empieza a rendir.
+
+### Sumar datos extra (experimental)
+
+```bash
+python training/filter_extra_images.py --model models/mobilenetv3_n30_do20_aug.keras
+python training/train_lightweight.py --backbone mobilenetv3 --n-capas 30 --dropout 0.2 \
+  --extra-manifest data/images_filtered_manifest.csv --extra-classes relaxed,sad --extra-weight 0.5
+```
+
+`--extra-manifest` suma imágenes extra solo a `train` (nunca a val/test), con
+`sample_weight` para pesar menos que el dataset curado. `filter_extra_images.py`
+cura `data/images/` (recolectadas de Flickr, sin revisar) usando el modelo
+actual como filtro; `build_archive_manifest.py` hace lo mismo para cualquier
+otro dataset de Kaggle que agregues en `archive/`, excluyendo automáticamente
+lo que ya esté en el test set. **Se probó tres veces y ninguna superó al
+modelo sin datos extra** — el detalle completo, incluyendo por qué, está en
+[REPORT.md](REPORT.md).
 
 ## Datos
 
 El dataset de entrenamiento ([Dog Emotion, Kaggle](https://www.kaggle.com/datasets/danielshanbalico/dog-emotion))
 se descarga solo con `kagglehub` — no hace falta tenerlo local.
 
-`data/` (si existe en tu copia local) tiene datasets para mirar/explorar a mano y
-**no se versiona** (está en `.gitignore`):
-- `data/Dog Emotion/`: copia local del dataset de Kaggle.
-- `data/images/`: imágenes adicionales recolectadas para una posible ampliación del
-  dataset. Todavía no se usan en el entrenamiento. Antes de sumarlas: no están
-  balanceadas entre clases, y su procedencia (nombres de archivo tipo Flickr) sugiere
-  que no pasaron por una curación tan cuidada como el dataset de Kaggle — conviene
-  revisar una muestra a mano antes de confiar en el set completo, y de todas formas
-  no deberían terminar versionadas en un repo público sin confirmar la licencia de
-  cada imagen.
+`data/` y `archive/` (si existen en tu copia local) tienen datasets extra para
+explorar/experimentar y **no se versionan** (están en `.gitignore`) — ninguno
+tiene licencia confirmada para redistribuir, así que no deberían terminar en
+el repo de todas formas:
+- `data/images/`: ~15.900 imágenes recolectadas de Flickr, sin balancear entre
+  clases y sin curar. Se probó sumarlas al entrenamiento filtradas por el
+  propio modelo (`training/filter_extra_images.py` genera
+  `data/images_filtered_manifest.csv`) — no mejoró el resultado, ver
+  [REPORT.md](REPORT.md).
+- `archive/`: otro dataset de Kaggle ("Final dog dataset") que se probó de la
+  misma forma (`training/build_archive_manifest.py` genera
+  `data/archive_manifest.csv`, excluyendo lo que ya está en el test set).
+  Tampoco mejoró el resultado.
 
 ## Página web
 
@@ -233,17 +270,17 @@ python3 -m http.server 8080 --directory docs
 # abrir http://localhost:8080
 ```
 
-**Publicarla en GitHub Pages** (paso manual, una sola vez): en GitHub, entrar a
-`Settings → Pages` del repo, y en "Build and deployment" elegir *Deploy from a
-branch*, branch `main`, carpeta `/docs`. Guardar. GitHub tarda un par de minutos
-en publicarla la primera vez, después queda actualizada automáticamente con cada
-push a `main` que toque `docs/`.
+**Publicada en GitHub Pages**: <https://tomasocastagnino.github.io/dog_emotions/>
+(`Settings → Pages` del repo, *Deploy from a branch*, branch `main`, carpeta
+`/docs`). Se actualiza sola con cada push a `main` que toque `docs/` — no hace
+falta ningún paso manual más allá de la configuración inicial (ya hecha).
 
-**Regenerar `docs/model/`** si reentrenás un modelo nuevo y lo dejás mejor que el
-actual:
+**Regenerar los modelos de `docs/`** si reentrenás algo nuevo y lo dejás mejor
+que el actual:
 
 ```bash
-python training/convert_to_tfjs.py --model models/<tu-modelo-nuevo>.keras
+python training/convert_to_tfjs.py --model models/<tu-modelo-nuevo>.keras   # docs/model/
+python training/convert_dog_gate.py                                        # docs/model_gate/
 ```
 
 ## App de escritorio (prototipo original)
@@ -256,4 +293,8 @@ como referencia y para probar modelos rápido sin esperar al armado de la págin
 ```bash
 python app.py
 ```
-# dog_emotions
+
+## Licencia
+
+[MIT](LICENSE) — el código de este repo, no el dataset (ver "Datos" arriba
+para las condiciones de cada uno).
