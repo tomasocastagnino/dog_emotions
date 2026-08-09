@@ -2,7 +2,7 @@
 
 Estado del modelo al 2026-08-09. Este documento resume qué se probó, qué ganó y
 por qué, para tener un punto de referencia claro antes de seguir iterando
-(detección de "hay un perro o no", sumar más datos, etc.).
+(sumar más datos, afinar hiperparámetros, etc.).
 
 ## Contexto
 
@@ -119,11 +119,21 @@ por medio — lo que sugiere que son limitaciones del *dataset*, no de la red:
 - GitHub Pages: pendiente de activar en la configuración del repo (`Settings → Pages`,
   branch `main`, carpeta `/docs` — ver [README](README.md#página-web)).
 
+## Filtro de "¿hay un perro?"
+
+El clasificador de emociones siempre devuelve una de las 4 clases, incluso
+apuntando a algo que no es un perro (una persona, un gato, la pared). Se agregó
+un filtro liviano antes de clasificar la emoción, usando `MobileNetV3Small`
+pre-entrenado en ImageNet **sin fine-tuning**: en el set de 1000 clases
+estándar de ImageNet, los índices 151 a 268 son las 118 razas de perro, y
+sumar su probabilidad combinada da una señal confiable de "esto es un perro"
+sin entrenar nada nuevo. Calibrado contra fotos reales del dataset (dan
+0,72–0,95 de probabilidad combinada) y ruido aleatorio (~0,03–0,04), con umbral
+en 0,3. Agrega 2,6 MB a la página (`docs/model_gate/`) y corre igual en
+`app.py` y en el navegador.
+
 ## Limitaciones y próximos pasos
 
-- El modelo siempre devuelve una de las 4 emociones, incluso si no hay un perro
-  en cámara (por ejemplo, apuntando a una persona). Está sobre la mesa agregar
-  un filtro liviano de "¿hay un perro?" antes de clasificar la emoción.
 - Hay ~15.900 imágenes adicionales sin usar (`data/images/`), recolectadas de
   Flickr, sin balancear entre clases y sin curar — podrían ayudar
   específicamente con `relaxed`, que es la clase con más margen de mejora, pero

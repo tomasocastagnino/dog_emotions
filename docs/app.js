@@ -7,6 +7,15 @@ const IMG_SIZE = 224;
 const CONF_THRESH = 0.45;
 const INFER_INTERVAL_MS = 400; // ~2.5 predicciones/seg, de sobra para que se sienta fluido
 
+// Filtro de "¿hay un perro?": MobileNetV3Small pre-entrenado en ImageNet, sin
+// fine-tuning. En el set de 1000 clases estandar de ImageNet, los indices 151 a
+// 268 son las 118 razas de perro (de "Chihuahua" a "Mexican_hairless"). Sumar
+// la probabilidad de todas esas clases da una señal de "es un perro" mas
+// estable que mirar solo la clase top-1 (mismo criterio que usa app.py).
+const DOG_INDEX_START = 151;
+const DOG_INDEX_END = 268; // inclusive
+const DOG_GATE_THRESH = 0.3; // calibrado: fotos reales de perro dan 0.72-0.95, ruido da ~0.03
+
 const CLASS_INFO = {
   angry:   { label: "Enojado 😠", color: "#dc3220" },
   happy:   { label: "Feliz 😄",   color: "#2fa63f" },
@@ -23,12 +32,19 @@ const confBarEl  = document.getElementById("confBar");
 const confTextEl = document.getElementById("confText");
 
 let model = null;
+let gateModel = null;
 
 async function loadModel() {
-  statusEl.textContent = "Cargando modelo (unos MB, una sola vez)...";
-  model = await tf.loadGraphModel("model/model.json");
+  statusEl.textContent = "Cargando modelos (unos MB, una sola vez)...";
+  [model, gateModel] = await Promise.all([
+    tf.loadGraphModel("model/model.json"),
+    tf.loadGraphModel("model_gate/model.json"),
+  ]);
   // Calentamiento: la primera inferencia real siempre es mas lenta.
-  tf.tidy(() => model.predict(tf.zeros([1, IMG_SIZE, IMG_SIZE, 3])));
+  tf.tidy(() => {
+    model.predict(tf.zeros([1, IMG_SIZE, IMG_SIZE, 3]));
+    gateModel.predict(tf.zeros([1, IMG_SIZE, IMG_SIZE, 3]));
+  });
   statusEl.textContent = "";
 }
 
@@ -56,16 +72,33 @@ async function startCamera() {
 }
 
 function predictFrame() {
-  if (!model || video.readyState < 2) return;
+  if (!model || !gateModel || video.readyState < 2) return;
   tf.tidy(() => {
     const input = tf.browser
       .fromPixels(video)
       .resizeBilinear([IMG_SIZE, IMG_SIZE])
       .toFloat()
-      .expandDims(0); // (1, 224, 224, 3), en [0,255] crudo -- el modelo rescala adentro
+      .expandDims(0); // (1, 224, 224, 3), en [0,255] crudo -- los modelos rescalan adentro
+
+    const gateProbs = gateModel.predict(input).dataSync();
+    let dogProb = 0;
+    for (let i = DOG_INDEX_START; i <= DOG_INDEX_END; i++) dogProb += gateProbs[i];
+
+    if (dogProb < DOG_GATE_THRESH) {
+      renderNoDog();
+      return;
+    }
+
     const probs = model.predict(input).dataSync();
     renderResult(probs);
   });
+}
+
+function renderNoDog() {
+  labelEl.textContent = "No se detecta un perro";
+  confBarEl.style.background = "#888";
+  confBarEl.style.width = "0%";
+  confTextEl.textContent = "";
 }
 
 function renderResult(probs) {

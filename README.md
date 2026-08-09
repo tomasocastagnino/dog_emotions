@@ -22,6 +22,7 @@ de una app de escritorio local.
 - [x] Reentrenar con una arquitectura liviana — MobileNetV3Large ganó, 80.75% acc / 24.3 MB (tabla completa abajo).
 - [x] Convertir el modelo final a TensorFlow.js (`docs/model/`, 3.1 MB).
 - [x] Armar la página (cámara + inferencia en el navegador) — `docs/index.html` + `docs/app.js`.
+- [x] Filtro de "¿hay un perro?" antes de mostrar una emoción (`docs/model_gate/`, ver abajo).
 - [ ] Activar GitHub Pages en la configuración del repo (paso manual, ver "Publicar" más abajo).
 
 ## Modelo final
@@ -44,18 +45,32 @@ descongeladas, dropout 0.2, augmentation): mejor accuracy de las 4, y sigue sien
 Análisis completo (matriz de confusión, curvas de entrenamiento, comparación
 por clase contra el modelo original) en **[REPORT.md](REPORT.md)**.
 
+### Filtro de "¿hay un perro?"
+
+El clasificador de emociones siempre devuelve una de las 4 clases, incluso
+apuntando a algo que no es un perro. Para evitarlo, antes de clasificar la
+emoción se corre un filtro con `MobileNetV3Small` pre-entrenado en ImageNet
+**sin ningún fine-tuning** — no hizo falta entrenar nada: en el set de 1000
+clases estándar de ImageNet, los índices 151 a 268 son exactamente las 118
+razas de perro, y sumar su probabilidad combinada da una señal muy confiable
+de "esto es un perro" (calibrado con fotos reales del dataset: 0.72–0.95, contra
+~0.03–0.04 en ruido aleatorio). Pesa 2,6 MB (`docs/model_gate/`) y corre igual
+en la página web y en `app.py`.
+
 ## Estructura del repo
 
 ```
 .
 ├── training/
 │   ├── train_lightweight.py     # entrena MobileNetV3Large / EfficientNetV2B0
-│   └── convert_to_tfjs.py       # convierte el .keras ganador a docs/model/
+│   ├── convert_to_tfjs.py       # convierte el .keras ganador a docs/model/
+│   └── convert_dog_gate.py      # genera docs/model_gate/ (filtro "¿hay un perro?")
 ├── app.py                       # app de escritorio (prototipo original, cámara local)
 ├── convert_to_tflite.py         # conversión .keras -> .tflite para la app de escritorio
 ├── docs/                        # la página web -> GitHub Pages (Settings > Pages > /docs)
 │   ├── index.html, style.css, app.js
-│   └── model/                   # modelo final en formato TensorFlow.js (3.1 MB)
+│   ├── model/                   # modelo de emociones en TensorFlow.js (3.1 MB)
+│   └── model_gate/              # filtro "¿hay un perro?" en TensorFlow.js (2.6 MB)
 ├── models/, histories/          # modelos entrenados + su historial (no se versionan)
 ├── data/                        # datasets locales (no se versionan, ver más abajo)
 ├── requirements.txt

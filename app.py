@@ -47,6 +47,14 @@ BACKBONE_PREPROCESS = {
     "default":     lambda img: img.astype("float32"),
 }
 
+# En el set de 1000 clases estandar de ImageNet, los indices 151 a 268 son
+# exactamente las 118 razas de perro (de "Chihuahua" a "Mexican_hairless" --
+# verificado contra imagenet_class_index.json). Sirve para el filtro de
+# "¿hay un perro?" sin tener que entrenar nada nuevo.
+DOG_INDEX_START = 151
+DOG_INDEX_END = 268  # inclusive
+DOG_GATE_THRESH = 0.3  # calibrado: fotos reales de perro dan 0.72-0.95, ruido da ~0.03
+
 
 def resolve_model_config(model_path: str):
     """
@@ -166,6 +174,33 @@ class KerasPredictor:
         return self.model.predict(tensor, verbose=0)[0]
 
 
+# ── Filtro de "¿hay un perro?" ──────────────────────────────────────────────────
+class DogGate:
+    """
+    Filtro liviano que corre ANTES del clasificador de emociones. Usa
+    MobileNetV3Small pre-entrenado en ImageNet, SIN fine-tuning -- no hace falta
+    entrenar nada, el modelo ya sabe reconocer razas de perro de fabrica.
+
+    Suma la probabilidad de las 118 razas de perro (indices 151-268) en vez de
+    mirar solo la clase top-1: la confianza suele repartirse entre varias razas
+    parecidas sin que ninguna domine, y sumarlas da una señal mucho mas estable
+    de "esto es un perro" que cualquiera de ellas por separado.
+    """
+    IMG_SIZE = (224, 224)
+
+    def __init__(self):
+        import tensorflow as tf
+        self.model = tf.keras.applications.MobileNetV3Small(weights="imagenet", include_top=True)
+
+    def is_dog(self, frame: np.ndarray) -> tuple[bool, float]:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        resized = cv2.resize(rgb, self.IMG_SIZE, interpolation=cv2.INTER_LINEAR)
+        tensor = np.expand_dims(resized.astype("float32"), axis=0)  # [0,255] crudo, el modelo rescala adentro
+        probs = self.model.predict(tensor, verbose=0)[0]
+        dog_prob = float(probs[DOG_INDEX_START:DOG_INDEX_END + 1].sum())
+        return dog_prob >= DOG_GATE_THRESH, dog_prob
+
+
 # ── Hilo de inferencia ─────────────────────────────────────────────────────────
 class InferenceThread(threading.Thread):
     """
@@ -173,13 +208,14 @@ class InferenceThread(threading.Thread):
     El hilo principal solo lee los resultados cuando estan listos,
     sin bloquearse esperando al modelo.
     """
-    def __init__(self, predictor):
+    def __init__(self, predictor, dog_gate: "DogGate | None" = None):
         super().__init__(daemon=True)
         self.predictor   = predictor
+        self.dog_gate    = dog_gate
         self._lock       = threading.Lock()
         self._frame      = None          # frame pendiente de procesar
         self._new_frame  = threading.Event()
-        self._result     = ("?", 0.0)
+        self._result     = ("?", 0.0, True)   # (label, conf, hay_perro)
         self._running    = True
 
     def submit(self, frame: np.ndarray):
@@ -188,7 +224,7 @@ class InferenceThread(threading.Thread):
             self._frame = frame.copy()
         self._new_frame.set()
 
-    def get_result(self) -> tuple[str, float]:
+    def get_result(self) -> tuple[str, float, bool]:
         with self._lock:
             return self._result
 
@@ -210,23 +246,35 @@ class InferenceThread(threading.Thread):
                 continue
 
             try:
-                probs  = self.predictor.predict_frame(frame)
-                idx    = int(np.argmax(probs))
-                label  = CLASSES[idx]
-                conf   = float(probs[idx])
+                hay_perro = True
+                if self.dog_gate is not None:
+                    hay_perro, _ = self.dog_gate.is_dog(frame)
+
+                if hay_perro:
+                    probs = self.predictor.predict_frame(frame)
+                    idx   = int(np.argmax(probs))
+                    label = CLASSES[idx]
+                    conf  = float(probs[idx])
+                else:
+                    label, conf = "?", 0.0
+
                 with self._lock:
-                    self._result = (label, conf)
+                    self._result = (label, conf, hay_perro)
             except Exception as e:
                 print(f"[WARN] Error en inferencia: {e}")
 
 
 # ── Overlay ────────────────────────────────────────────────────────────────────
 def draw_overlay(frame: np.ndarray, label: str, confidence: float,
-                 fps: float, backend: str) -> np.ndarray:
+                 fps: float, backend: str, hay_perro: bool = True) -> np.ndarray:
     h, w = frame.shape[:2]
     overlay = frame.copy()
 
-    if confidence >= CONF_THRESH:
+    if not hay_perro:
+        color = (90, 90, 90)
+        text  = "No se detecta un perro"
+        confidence = 0.0
+    elif confidence >= CONF_THRESH:
         color = CLASS_COLORS.get(label, (255, 255, 255))
         text  = f"{label.upper()}  {confidence*100:.1f}%"
     else:
@@ -275,8 +323,12 @@ def run(model_path: str, tipo: str) -> None:
 
     print("Modelo listo.")
 
+    print("Cargando filtro de detección de perro (MobileNetV3Small, ImageNet)...")
+    dog_gate = DogGate()
+    print("Filtro listo.")
+
     # Arrancar hilo de inferencia
-    worker = InferenceThread(predictor)
+    worker = InferenceThread(predictor, dog_gate)
     worker.start()
 
     cap = cv2.VideoCapture(0)
@@ -316,8 +368,8 @@ def run(model_path: str, tipo: str) -> None:
         if frame_count % SUBMIT_EVERY == 0:
             worker.submit(frame)
 
-        label, confidence = worker.get_result()
-        display = draw_overlay(frame, label, confidence, fps, backend_id)
+        label, confidence, hay_perro = worker.get_result()
+        display = draw_overlay(frame, label, confidence, fps, backend_id, hay_perro)
         cv2.imshow(window_name, display)
 
         key = cv2.waitKey(1) & 0xFF
