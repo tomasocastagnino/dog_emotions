@@ -5,6 +5,7 @@ kaggle.json
 # a mano -- las de data/images/ ademas tienen proveniencia de Flickr sin licencia
 # confirmada, no deberian terminar en un repo publico de todas formas)
 data/
+archive/
 
 # Modelos y resultados de entrenamiento (grandes / se regeneran corriendo el
 # training script o el notebook). Si en algun momento quieren versionar a

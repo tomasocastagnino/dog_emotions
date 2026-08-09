@@ -168,20 +168,57 @@ entre 0,2 y 0,5 sugiere que buena parte de la diferencia es simplemente
 varianza entre corridas (con menos épocas, hay menos margen para que el
 entrenamiento se asiente), no solo el peso en sí.
 
-No se siguió iterando sobre el peso (probar 0,1, 0,35, más paciencia para darle
-tiempo a converger) porque no había una señal clara de que fuera a mejorar con
-un tercer intento — antes de seguir ajustando este dial, tiene más sentido
-revisar a mano una muestra de `relaxed` (ver "Limitaciones" abajo) para saber
-si el problema es la cantidad de datos o la calidad/ambigüedad de las
-etiquetas, que ningún peso va a arreglar.
+### Tercer intento: otro dataset de Kaggle, sumando a las 4 clases parejo
+
+Se encontró otro dataset ("Final dog dataset", en `archive/`) con 3876
+imágenes. Antes de usarlo se cruzaron los nombres de archivo contra lo que ya
+había: **2336 son las mismas del dataset de Kaggle original y 1514 las mismas
+de `data/images/`** — es decir, casi no aporta imágenes realmente nuevas, es
+en gran parte una recombinación de las mismas dos fuentes. Más importante
+todavía: **468 de esas imágenes resultaron ser parte del test set** que se
+viene usando para comparar todas las corridas de este informe — se excluyeron
+antes de entrenar nada (`training/build_archive_manifest.py`) para no
+contaminar la comparación.
+
+Lo que sí aporta este dataset es una curación *distinta* de la carpeta de
+Flickr: en vez de concentrarse en una sola clase (como el filtro propio, que
+solo tomó `relaxed`), viene parejo entre las 4 (753–979 imágenes por clase
+después de sacar el solapamiento con test). Se probó sumar las 3408 imágenes
+utilizables a las 4 clases a la vez (peso 0,5):
+
+| Intento | test_acc | Recall relaxed | Recall sad |
+| --- | --- | --- | --- |
+| Sin extra | **80,75%** | 0,785 | 0,845 |
+| Extra "relaxed" solo, peso 0,5 | 77,88% | 0,880 | 0,695 |
+| Extra "relaxed" solo, peso 0,2 | 77,38% | 0,775 | 0,770 |
+| Extra 4 clases parejo, peso 0,5 | 79,00% | 0,835 | 0,750 |
+
+Sumar a las 4 clases parejo dio el mejor resultado de los tres intentos con
+datos extra (79,00%, contra 77,88% y 77,38%) — confirma que concentrar el
+refuerzo en una sola clase distorsiona más de lo que ayuda. Pero **tampoco
+superó a no sumar nada** (80,75%), y el mismo patrón de fondo se repite: sube
+el recall de `relaxed` a costa de confundir más `sad` con `relaxed` (43 casos
+contra 28 del baseline — menos grave que los 58 del primer intento, pero
+sigue ahí).
+
+Que **los tres intentos, con dos fuentes de datos distintas y tres
+configuraciones distintas, choquen contra el mismo límite** (mejorar
+`relaxed` cuesta `sad`) es la señal más fuerte hasta ahora de que el problema
+no es cuánta data se suma ni cómo se pesa, sino que el modelo ve algo
+genuinamente ambiguo entre esas dos clases en las imágenes mismas — exactamente
+lo que ya había notado el informe del trabajo original. No se siguió
+iterando sobre pesos/combinaciones para no extender la búsqueda
+indefinidamente sin una señal de que vaya a funcionar; el modelo en producción
+sigue siendo `mobilenetv3_n30_do20_aug` (80,75%, sin datos extra).
 
 ## Limitaciones y próximos pasos
 
-- Antes de seguir ajustando el peso de los datos extra, tiene más sentido
-  revisar a mano una muestra de las imágenes de `relaxed` (las de Kaggle y las
-  de Flickr que sobrevivieron el filtro) para entender si el techo está en la
-  cantidad de datos o en ambigüedad/etiquetas dudosas — esto último no lo
-  arregla ningún ajuste de hiperparámetros.
+- Con tres intentos de sumar datos chocando contra el mismo límite
+  (`relaxed` vs `sad`), revisar a mano una muestra de ambas clases (las de
+  Kaggle y las que pasaron los filtros de Flickr) pesa más que seguir
+  probando combinaciones de pesos — si el problema es de etiquetas dudosas o
+  ambigüedad visual real, ningún ajuste de datos ni de hiperparámetros lo va
+  a resolver solo.
 - No se hizo un barrido más fino alrededor de `n_capas=30` (por ejemplo 25 o 35)
   para confirmar si ese es realmente el óptimo o si se puede exprimir un poco más.
 
