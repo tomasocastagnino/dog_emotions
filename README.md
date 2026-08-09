@@ -7,6 +7,8 @@ ningún servidor.
 
 **🔴 Probala en vivo: <https://tomasocastagnino.github.io/dog_emotions/>**
 
+![Demo: el modelo clasificando 4 fotos reales del dataset de test](assets/demo.gif)
+
 ## Origen del proyecto
 
 La idea nace de un trabajo práctico de la materia *Introducción a la Inteligencia

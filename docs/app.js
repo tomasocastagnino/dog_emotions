@@ -80,7 +80,15 @@ function predictFrame() {
       .toFloat()
       .expandDims(0); // (1, 224, 224, 3), en [0,255] crudo -- los modelos rescalan adentro
 
-    const gateProbs = gateModel.predict(input).dataSync();
+    // Test-time augmentation: promediar la prediccion del frame tal cual y de
+    // su espejado horizontal. Los dos modelos vieron flips durante su propio
+    // entrenamiento (RandomFlip / augmentation de ImageNet), asi que consultar
+    // ambas vistas y promediar suaviza un poco el ruido de una sola pasada,
+    // sin reentrenar nada -- el costo es una segunda pasada por frame, que
+    // estos modelos livianos absorben sin problema.
+    const flipped = tf.reverse(input, [2]);
+
+    const gateProbs = gateModel.predict(input).add(gateModel.predict(flipped)).div(2).dataSync();
     let dogProb = 0;
     for (let i = DOG_INDEX_START; i <= DOG_INDEX_END; i++) dogProb += gateProbs[i];
 
@@ -89,7 +97,7 @@ function predictFrame() {
       return;
     }
 
-    const probs = model.predict(input).dataSync();
+    const probs = model.predict(input).add(model.predict(flipped)).div(2).dataSync();
     renderResult(probs);
   });
 }
