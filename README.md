@@ -22,7 +22,7 @@ de una app de escritorio local.
 - [x] Reentrenar con una arquitectura liviana — MobileNetV3Large ganó, 80.75% acc / 24.3 MB (tabla completa abajo).
 - [x] Convertir el modelo final a TensorFlow.js (`docs/model/`, 3.1 MB).
 - [x] Armar la página (cámara + inferencia en el navegador) — `docs/index.html` + `docs/app.js`.
-- [ ] Activar GitHub Pages en la configuración del repo (paso manual, ver "Publicar" más abajo — no lo puedo hacer yo, no tengo acceso a Settings del repo).
+- [ ] Activar GitHub Pages en la configuración del repo (paso manual, ver "Publicar" más abajo).
 
 ## Modelo final
 
@@ -170,10 +170,9 @@ comparable 1 a 1 contra el 0.760 de InceptionV3. Guarda tres cosas por corrida e
 - `models/<nombre-corrida>.keras` — el modelo.
 - `histories/<nombre-corrida>_history.pkl` — curvas de loss/accuracy por época.
 - `histories/<nombre-corrida>_metadata.json` — arquitectura, hiperparámetros,
-  test_acc, tamaño en MB y segundos que tardó. Esto es a propósito: la vez pasada
-  perdimos el rastro de qué configuración exacta era `mejor_estrategia_2.keras` y
-  hubo que reconstruirlo a mano desde el notebook — con el `.json` al lado de cada
-  modelo no vuelve a pasar.
+  test_acc, tamaño en MB y segundos que tardó. Sirve para no perder de vista qué
+  configuración exacta generó cada modelo (antes había que reconstruirlo a mano
+  revisando el notebook).
 
 Parámetros disponibles: `--n-capas` (capas del backbone a descongelar, default 20),
 `--dropout` (default 0.2), `--augment`/`--no-augment`, `--epochs`, `--patience`.
