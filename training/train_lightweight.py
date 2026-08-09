@@ -21,6 +21,7 @@ raiz del repo (local) o los Secrets KAGGLE_USERNAME/KAGGLE_KEY (Colab).
 """
 
 import argparse
+import csv
 import json
 import os
 import pathlib
@@ -117,6 +118,48 @@ def make_dataset(paths, labels, cache_file, shuffle=False):
     return ds.batch(BATCH).prefetch(AUTOTUNE)
 
 
+def load_extra_manifest(path, classes_filter):
+    """Lee el manifest de training/filter_extra_images.py (path,label,confidence)
+    y devuelve (paths, labels) limitado a las clases pedidas."""
+    paths, labels = [], []
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            if row["label"] in classes_filter:
+                paths.append(row["path"])
+                labels.append(CLASSES.index(row["label"]))
+    return np.array(paths), np.array(labels)
+
+
+def _pil_load_resize(path_tensor):
+    """Carga con PIL en vez de tf.io.decode_image. Mezclando Kaggle + Flickr,
+    tf.io.decode_image tira "Unknown image file format" a mitad de
+    entrenamiento de forma reproducible -- pasa igual con y sin cache, con y
+    sin paralelismo, aunque cada archivo decodifica bien probado uno por uno
+    con tf.io.decode_image fuera del pipeline. No se pudo aislar la causa exacta
+    (huele a bug del decoder de TF con esta mezcla puntual de formatos/tamaños),
+    asi que se lo evita del todo usando el loader de PIL que ya usa
+    filter_extra_images.py para validar estas mismas imagenes."""
+    path = path_tensor.numpy().decode("utf-8")
+    img = tf.keras.utils.load_img(path, target_size=IMG_SIZE)
+    return tf.keras.utils.img_to_array(img).astype("float32")
+
+
+def _load_weighted(p, y, w):
+    img = tf.py_function(func=_pil_load_resize, inp=[p], Tout=tf.float32)
+    img.set_shape((IMG_SIZE[0], IMG_SIZE[1], 3))
+    return img, y, w
+
+
+def make_weighted_dataset(paths, labels, weights, cache_file, shuffle=False):
+    """Igual que make_dataset, pero con un peso por muestra (sample_weight) --
+    para que los datos extra pesen menos en la loss que los del dataset curado."""
+    ds = tf.data.Dataset.from_tensor_slices((paths, labels, weights))
+    if shuffle:
+        ds = ds.shuffle(len(paths), seed=SEED, reshuffle_each_iteration=True)
+    ds = ds.map(_load_weighted, num_parallel_calls=AUTOTUNE)
+    return ds.batch(BATCH).prefetch(AUTOTUNE)
+
+
 # --- Modelo ---------------------------------------------------------------------------
 def unfreeze_last_n(base_model, n):
     """Descongela las ultimas n capas del backbone (sin tocar BatchNorm, para no
@@ -177,6 +220,24 @@ def train(args):
     (p_train, y_train), (p_val, y_val), (p_test, y_test) = split_dataset(data_dir)
     print(f"train={len(p_train)}  val={len(p_val)}  test={len(p_test)} imagenes")
 
+    # Datos extra (opcional): salen de training/filter_extra_images.py, que ya los
+    # filtro contra el modelo actual -- aca solo se suman a TRAIN, nunca a val/test,
+    # para no perder un punto de comparacion limpio contra las corridas anteriores.
+    extra_info = None
+    weights_train = np.ones(len(p_train), dtype="float32")
+    if args.extra_manifest:
+        extra_classes = [c.strip() for c in args.extra_classes.split(",")]
+        p_extra, y_extra = load_extra_manifest(args.extra_manifest, extra_classes)
+        print(f"Datos extra ({args.extra_manifest}): {len(p_extra)} imagenes de "
+              f"{extra_classes}, peso={args.extra_weight}")
+        p_train = np.concatenate([p_train, p_extra])
+        y_train = np.concatenate([y_train, y_extra])
+        weights_train = np.concatenate(
+            [weights_train, np.full(len(p_extra), args.extra_weight, dtype="float32")])
+        extra_info = {"manifest": args.extra_manifest, "classes": extra_classes,
+                     "weight": args.extra_weight, "n_extra": int(len(p_extra))}
+        print(f"train total con extra: {len(p_train)} imagenes")
+
     # Cache nuevo en cada corrida: si una corrida anterior lo dejo a medio escribir
     # (p. ej. por el chequeo interno que hace Keras al arrancar .fit()), la proxima
     # lo encuentra corrupto y tira el warning "did not fully read the dataset being
@@ -185,7 +246,11 @@ def train(args):
     cache_dir = os.path.join(tempfile.gettempdir(), "dog_emotion_cache", f"{args.backbone}_{os.getpid()}")
     shutil.rmtree(cache_dir, ignore_errors=True)
     os.makedirs(cache_dir, exist_ok=True)
-    train_ds = make_dataset(p_train, y_train, os.path.join(cache_dir, "train"), shuffle=True)
+    if extra_info:
+        train_ds = make_weighted_dataset(p_train, y_train, weights_train,
+                                         os.path.join(cache_dir, "train"), shuffle=True)
+    else:
+        train_ds = make_dataset(p_train, y_train, os.path.join(cache_dir, "train"), shuffle=True)
     val_ds = make_dataset(p_val, y_val, os.path.join(cache_dir, "val"))
     test_ds = make_dataset(p_test, y_test, os.path.join(cache_dir, "test"))
 
@@ -209,8 +274,11 @@ def train(args):
     test_loss, test_acc = model.evaluate(test_ds, verbose=0)
     trainable_params = int(sum(tf.size(w).numpy() for w in model.trainable_weights))
 
+    extra_suffix = ""
+    if extra_info:
+        extra_suffix = "_extra" + "".join(c[:3] for c in extra_info["classes"])
     run_name = (f"{args.backbone}_n{args.n_capas}_do{int(args.dropout * 100)}_"
-               f"{'aug' if args.augment else 'noaug'}")
+               f"{'aug' if args.augment else 'noaug'}{extra_suffix}")
     os.makedirs("models", exist_ok=True)
     os.makedirs("histories", exist_ok=True)
     model_path = f"models/{run_name}.keras"
@@ -232,6 +300,7 @@ def train(args):
         "dataset": "danielshanbalico/dog-emotion (Kaggle)",
         "split_seed": SEED,
         "ram_pico_mb": peak_memory_mb(),
+        "extra_data": extra_info,
     }
     with open(f"histories/{run_name}_history.pkl", "wb") as f:
         pickle.dump(history.history, f)
@@ -260,6 +329,12 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=40, help="Tope de epocas (default: 40)")
     p.add_argument("--patience", type=int, default=6,
                    help="Paciencia de EarlyStopping sobre val_accuracy (default: 6)")
+    p.add_argument("--extra-manifest", default=None,
+                   help="CSV de training/filter_extra_images.py con datos extra ya filtrados")
+    p.add_argument("--extra-classes", default="relaxed",
+                   help="Clases (separadas por coma) para las que sumar datos extra (default: relaxed)")
+    p.add_argument("--extra-weight", type=float, default=0.5,
+                   help="Peso relativo de las imagenes extra en la loss (default: 0.5)")
     return p.parse_args()
 
 

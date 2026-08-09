@@ -132,12 +132,47 @@ sin entrenar nada nuevo. Calibrado contra fotos reales del dataset (dan
 en 0,3. Agrega 2,6 MB a la página (`docs/model_gate/`) y corre igual en
 `app.py` y en el navegador.
 
+## Experimento: sumar datos extra filtrados (no se adoptó)
+
+`data/images/` tiene ~15.900 imágenes de Flickr sin curar, recolectadas aparte
+del dataset de Kaggle. En vez de revisarlas a mano, se usó el modelo elegido
+como filtro automático (`training/filter_extra_images.py`): se quedó solo con
+las imágenes donde la carpeta de origen y la predicción del modelo coinciden
+con confianza ≥ 0,8. Sobrevivió el **40%** (6.374 de 15.921) — señal de que el
+dataset es efectivamente ruidoso, como se sospechaba. Por clase: `angry` fue la
+que menos sobrevivió (23,2%), `relaxed` la que más (46,4%, 2.016 imágenes).
+
+Se sumaron esas 2.016 imágenes de `relaxed` al entrenamiento (solo a train, con
+`sample_weight=0.5` para pesar menos que el dataset curado) sobre la misma
+configuración ganadora (MobileNetV3Large, 30 capas, dropout 0.2). Resultado:
+**test_acc bajó a 77,88%** (contra 80,75% sin los datos extra) — no se adoptó,
+el modelo en producción sigue siendo `mobilenetv3_n30_do20_aug`.
+
+Mirando por clase se entiende por qué no fue una mejora simple:
+
+| Clase | Recall sin extra | Recall con extra | Precision sin extra | Precision con extra |
+| --- | --- | --- | --- | --- |
+| relaxed | 0,785 | **0,880** | 0,701 | **0,611** |
+| sad | 0,845 | **0,695** | 0,790 | 0,853 |
+| angry | 0,755 | 0,700 | 0,893 | 0,933 |
+
+El recall de `relaxed` efectivamente mejoró (el modelo reconoce más perros
+relajados de verdad), pero a costa de "gatillo fácil": empezó a etiquetar como
+`relaxed` una porción mucho mayor de fotos de `sad` (58 casos contra 28 antes),
+justo la clase con la que más se confunde. Sumar datos a una sola clase corrió
+el punto de equilibrio del modelo hacia esa clase en vez de mejorar la
+separación en general — no es que los datos extra no sirvan, sino que 2.016
+imágenes con peso 0,5 fue demasiado empuje en una sola dirección.
+
+No se seguió iterando sobre esto (probar `--extra-weight` más bajo, usar menos
+imágenes, o sumar a varias clases a la vez) para no extender indefinidamente la
+búsqueda — queda anotado como próximo paso concreto más abajo.
+
 ## Limitaciones y próximos pasos
 
-- Hay ~15.900 imágenes adicionales sin usar (`data/images/`), recolectadas de
-  Flickr, sin balancear entre clases y sin curar — podrían ayudar
-  específicamente con `relaxed`, que es la clase con más margen de mejora, pero
-  conviene revisar una muestra a mano antes de sumarlas al entrenamiento.
+- El experimento de arriba sugiere que vale la pena reintentar con un
+  `--extra-weight` más bajo (0.2–0.3) o un subconjunto más chico de las 2.016
+  imágenes de `relaxed`, en vez de las 2.016 completas a peso 0.5.
 - No se hizo un barrido más fino alrededor de `n_capas=30` (por ejemplo 25 o 35)
   para confirmar si ese es realmente el óptimo o si se puede exprimir un poco más.
 
