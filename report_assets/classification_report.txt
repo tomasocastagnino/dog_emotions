@@ -1,0 +1,12 @@
+mobilenetv3_n30_do20_aug
+
+              precision    recall  f1-score   support
+
+       angry      0.893     0.755     0.818       200
+       happy      0.876     0.845     0.860       200
+     relaxed      0.701     0.785     0.741       200
+         sad      0.790     0.845     0.816       200
+
+    accuracy                          0.807       800
+   macro avg      0.815     0.808     0.809       800
+weighted avg      0.815     0.807     0.809       800

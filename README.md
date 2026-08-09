@@ -41,6 +41,9 @@ descongeladas, dropout 0.2, augmentation): mejor accuracy de las 4, y sigue sien
 ~5x más chico que InceptionV3. Convertido a TensorFlow.js queda en 3.1 MB
 (`docs/model/`) — el mismo modelo que sirve `docs/index.html`.
 
+Análisis completo (matriz de confusión, curvas de entrenamiento, comparación
+por clase contra el modelo original) en **[REPORT.md](REPORT.md)**.
+
 ## Estructura del repo
 
 ```

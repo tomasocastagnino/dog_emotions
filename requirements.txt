@@ -13,3 +13,6 @@ tensorflowjs==4.22.0
 # >=81 lo saca. Sin este pin, `tensorflowjs_converter` explota con
 # "ModuleNotFoundError: No module named 'pkg_resources'".
 setuptools<81
+
+# Solo para generar los gráficos de REPORT.md (training/generate_report_assets.py).
+matplotlib==3.11.1
