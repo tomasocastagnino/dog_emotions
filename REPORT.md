@@ -116,8 +116,8 @@ por medio — lo que sugiere que son limitaciones del *dataset*, no de la red:
 
 - Modelo en TensorFlow.js: [`docs/model/`](docs/model/) (3,1 MB).
 - Página (cámara + inferencia en el navegador): [`docs/index.html`](docs/index.html).
-- GitHub Pages: pendiente de activar en la configuración del repo (`Settings → Pages`,
-  branch `main`, carpeta `/docs` — ver [README](README.md#página-web)).
+- GitHub Pages: publicado en <https://tomasocastagnino.github.io/dog_emotions/>,
+  se actualiza solo con cada push a `main` que toque `docs/`.
 
 ## Filtro de "¿hay un perro?"
 
@@ -129,8 +129,17 @@ estándar de ImageNet, los índices 151 a 268 son las 118 razas de perro, y
 sumar su probabilidad combinada da una señal confiable de "esto es un perro"
 sin entrenar nada nuevo. Calibrado contra fotos reales del dataset (dan
 0,72–0,95 de probabilidad combinada) y ruido aleatorio (~0,03–0,04), con umbral
-en 0,3. Agrega 2,6 MB a la página (`docs/model_gate/`) y corre igual en
-`app.py` y en el navegador.
+en 0,3 inicialmente. Agrega 2,6 MB a la página (`docs/model_gate/`) y corre
+igual en `app.py` y en el navegador.
+
+Esa calibración con fotos curadas no se sostuvo en uso real: con webcam, el
+mismo perro real da valores bastante más bajos (peor encuadre, luz y
+movimiento que una foto de dataset) — en pruebas concretas llegó a ~0,11, muy
+por debajo del umbral original. Se bajó el umbral a **0,10** y se agregó el
+valor crudo del gate en pantalla (HUD en `app.py`, status en la web) para
+recalibrar con datos reales en vez de con fotos fijas. Queda pendiente
+investigar un falso positivo puntual observado (~0,8 sin perro en cámara),
+que un ajuste de umbral por sí solo no resuelve.
 
 ## Experimento: sumar datos extra filtrados (no se adoptó)
 

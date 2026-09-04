@@ -70,6 +70,17 @@ de "esto es un perro" (calibrado con fotos reales del dataset: 0.72–0.95, cont
 ~0.03–0.04 en ruido aleatorio). Pesa 2,6 MB (`docs/model_gate/`) y corre igual
 en la página web y en `app.py`.
 
+Esa calibración inicial (umbral 0.3) resultó demasiado estricta en uso real:
+las fotos del dataset están bien encuadradas y con buena luz, pero una cámara
+en vivo da valores más bajos para el mismo perro (encuadre, luz, movimiento) —
+en pruebas con webcam, un perro real frente a cámara dio ~0.11. El umbral bajó
+a **0.10** y tanto `app.py` como la página web ahora muestran el valor crudo
+del gate en pantalla para poder seguir ajustándolo. Ojo: en una prueba puntual
+también se vio un falso positivo (~0.8 sin ningún perro en cámara) que bajar
+el umbral no resuelve — si se repite seguido, hace falta algo más robusto que
+un umbral fijo en un solo frame (por ejemplo, promediar el gate en varios
+frames seguidos antes de decidir).
+
 ## Estructura del repo
 
 ```
