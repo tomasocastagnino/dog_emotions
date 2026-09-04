@@ -14,7 +14,9 @@ const INFER_INTERVAL_MS = 400; // ~2.5 predicciones/seg, de sobra para que se si
 // estable que mirar solo la clase top-1 (mismo criterio que usa app.py).
 const DOG_INDEX_START = 151;
 const DOG_INDEX_END = 268; // inclusive
-const DOG_GATE_THRESH = 0.3; // calibrado: fotos reales de perro dan 0.72-0.95, ruido da ~0.03
+const DOG_GATE_THRESH = 0.12; // calibrado con fotos curadas del dataset (0.72-0.95); una webcam
+// en vivo da valores mas bajos para el mismo perro (encuadre, luz, movimiento), asi que el
+// umbral se bajo para no bloquear perros reales. El status muestra el valor crudo del gate.
 
 const CLASS_INFO = {
   angry:   { label: "Enojado 😠", color: "#dc3220" },
@@ -93,7 +95,7 @@ function predictFrame() {
     for (let i = DOG_INDEX_START; i <= DOG_INDEX_END; i++) dogProb += gateProbs[i];
 
     if (dogProb < DOG_GATE_THRESH) {
-      renderNoDog();
+      renderNoDog(dogProb);
       return;
     }
 
@@ -102,11 +104,11 @@ function predictFrame() {
   });
 }
 
-function renderNoDog() {
+function renderNoDog(dogProb) {
   labelEl.textContent = "No se detecta un perro";
   confBarEl.style.background = "#888";
   confBarEl.style.width = "0%";
-  confTextEl.textContent = "";
+  confTextEl.textContent = `gate: ${dogProb.toFixed(2)} (umbral ${DOG_GATE_THRESH})`;
 }
 
 function renderResult(probs) {

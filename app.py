@@ -53,7 +53,9 @@ BACKBONE_PREPROCESS = {
 # "¿hay un perro?" sin tener que entrenar nada nuevo.
 DOG_INDEX_START = 151
 DOG_INDEX_END = 268  # inclusive
-DOG_GATE_THRESH = 0.3  # calibrado: fotos reales de perro dan 0.72-0.95, ruido da ~0.03
+DOG_GATE_THRESH = 0.12  # calibrado con fotos curadas del dataset (0.72-0.95); una webcam en
+# vivo da valores mas bajos para el mismo perro (encuadre, luz, movimiento), asi que el umbral
+# se bajo para no bloquear perros reales. El HUD muestra el valor crudo del gate para recalibrar.
 
 
 def resolve_model_config(model_path: str):
@@ -215,7 +217,7 @@ class InferenceThread(threading.Thread):
         self._lock       = threading.Lock()
         self._frame      = None          # frame pendiente de procesar
         self._new_frame  = threading.Event()
-        self._result     = ("?", 0.0, True)   # (label, conf, hay_perro)
+        self._result     = ("?", 0.0, True, 0.0)   # (label, conf, hay_perro, dog_prob)
         self._running    = True
 
     def submit(self, frame: np.ndarray):
@@ -224,7 +226,7 @@ class InferenceThread(threading.Thread):
             self._frame = frame.copy()
         self._new_frame.set()
 
-    def get_result(self) -> tuple[str, float, bool]:
+    def get_result(self) -> tuple[str, float, bool, float]:
         with self._lock:
             return self._result
 
@@ -247,8 +249,9 @@ class InferenceThread(threading.Thread):
 
             try:
                 hay_perro = True
+                dog_prob  = 1.0
                 if self.dog_gate is not None:
-                    hay_perro, _ = self.dog_gate.is_dog(frame)
+                    hay_perro, dog_prob = self.dog_gate.is_dog(frame)
 
                 if hay_perro:
                     probs = self.predictor.predict_frame(frame)
@@ -259,14 +262,15 @@ class InferenceThread(threading.Thread):
                     label, conf = "?", 0.0
 
                 with self._lock:
-                    self._result = (label, conf, hay_perro)
+                    self._result = (label, conf, hay_perro, dog_prob)
             except Exception as e:
                 print(f"[WARN] Error en inferencia: {e}")
 
 
 # ── Overlay ────────────────────────────────────────────────────────────────────
 def draw_overlay(frame: np.ndarray, label: str, confidence: float,
-                 fps: float, backend: str, hay_perro: bool = True) -> np.ndarray:
+                 fps: float, backend: str, hay_perro: bool = True,
+                 dog_prob: float = 1.0) -> np.ndarray:
     h, w = frame.shape[:2]
     overlay = frame.copy()
 
@@ -299,7 +303,7 @@ def draw_overlay(frame: np.ndarray, label: str, confidence: float,
     cv2.rectangle(frame, (0, h-bar_h-5), (bar_w, h-bar_h), color, -1)
 
     # Info HUD (arriba izquierda)
-    hud = f"FPS: {fps:.1f}  |  {backend}  |  'q' para salir"
+    hud = f"FPS: {fps:.1f}  |  {backend}  |  gate: {dog_prob:.2f} (umbral {DOG_GATE_THRESH})  |  'q' para salir"
     cv2.putText(frame, hud, (10, 28), cv2.FONT_HERSHEY_SIMPLEX,
                 0.6, (200, 200, 200), 1, cv2.LINE_AA)
 
@@ -368,8 +372,8 @@ def run(model_path: str, tipo: str) -> None:
         if frame_count % SUBMIT_EVERY == 0:
             worker.submit(frame)
 
-        label, confidence, hay_perro = worker.get_result()
-        display = draw_overlay(frame, label, confidence, fps, backend_id, hay_perro)
+        label, confidence, hay_perro, dog_prob = worker.get_result()
+        display = draw_overlay(frame, label, confidence, fps, backend_id, hay_perro, dog_prob)
         cv2.imshow(window_name, display)
 
         key = cv2.waitKey(1) & 0xFF
