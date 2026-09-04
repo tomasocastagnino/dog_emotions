@@ -53,9 +53,11 @@ BACKBONE_PREPROCESS = {
 # "¿hay un perro?" sin tener que entrenar nada nuevo.
 DOG_INDEX_START = 151
 DOG_INDEX_END = 268  # inclusive
-DOG_GATE_THRESH = 0.12  # calibrado con fotos curadas del dataset (0.72-0.95); una webcam en
+DOG_GATE_THRESH = 0.10  # calibrado con fotos curadas del dataset (0.72-0.95); una webcam en
 # vivo da valores mas bajos para el mismo perro (encuadre, luz, movimiento), asi que el umbral
-# se bajo para no bloquear perros reales. El HUD muestra el valor crudo del gate para recalibrar.
+# se bajo para no bloquear perros reales. Recalibrado con pruebas reales: con perro dio ~0.11,
+# sin perro llego a ~0.8 en algun frame puntual (posible falso positivo, no resuelto por esto).
+# El HUD muestra el valor crudo del gate para seguir ajustando.
 
 
 def resolve_model_config(model_path: str):

@@ -14,9 +14,11 @@ const INFER_INTERVAL_MS = 400; // ~2.5 predicciones/seg, de sobra para que se si
 // estable que mirar solo la clase top-1 (mismo criterio que usa app.py).
 const DOG_INDEX_START = 151;
 const DOG_INDEX_END = 268; // inclusive
-const DOG_GATE_THRESH = 0.12; // calibrado con fotos curadas del dataset (0.72-0.95); una webcam
+const DOG_GATE_THRESH = 0.10; // calibrado con fotos curadas del dataset (0.72-0.95); una webcam
 // en vivo da valores mas bajos para el mismo perro (encuadre, luz, movimiento), asi que el
-// umbral se bajo para no bloquear perros reales. El status muestra el valor crudo del gate.
+// umbral se bajo para no bloquear perros reales. Recalibrado con pruebas reales: con perro dio
+// ~0.11, sin perro llego a ~0.8 en algun frame puntual (posible falso positivo, no resuelto por
+// esto). El status muestra el valor crudo del gate para seguir ajustando.
 
 const CLASS_INFO = {
   angry:   { label: "Enojado 😠", color: "#dc3220" },
